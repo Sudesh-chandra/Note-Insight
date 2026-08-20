@@ -1,0 +1,55 @@
+Patient: Eleanor Whitfield, 78yo Female
+Visit Date: 2025-01-08
+Pseudonym: EW-2025-0108
+
+SUBJECTIVE:
+Patient brought in by daughter for annual wellness visit and medication 
+review. Daughter reports patient has been increasingly forgetful over the 
+past 6 months — repeating questions, occasionally forgetting to turn off 
+the stove. Patient acknowledges some memory difficulty but feels it is 
+"just normal aging." Denies falls, dizziness, or vision changes. Reports 
+chronic low back pain, rates 4/10, managed with acetaminophen PRN. 
+Also reports feeling "down" lately, less interested in activities she 
+used to enjoy.
+
+Past Medical History:
+- Atrial fibrillation (diagnosed 2022)
+- Hypothyroidism (on levothyroxine)
+- Osteoarthritis, knees and lower back
+- Depression (history of, previously on sertraline)
+
+Medications:
+- Levothyroxine 75mcg daily
+- Metoprolol 50mg BID
+- Apixaban 5mg BID
+- Acetaminophen 500mg PRN
+- Sertraline — daughter says she stopped taking it about a year ago
+
+OBJECTIVE:
+BP: 132/78 mmHg (sitting)
+HR: 68 bpm, irregularly irregular
+MMSE: 24/30 (loss of points in recall and orientation to date)
+Gait: Steady, no assistive device
+Mood: Flat affect, limited spontaneous speech
+Knees: Mild crepitus bilaterally, no effusion
+
+ASSESSMENT:
+1. Possible mild cognitive impairment vs early dementia — MMSE 24/30, 
+   corroborated functional decline from daughter. Needs formal 
+   neuropsychological testing.
+2. Atrial fibrillation — rate controlled on metoprolol, anticoagulated 
+   on apixaban.
+3. Hypothyroidism — stable on levothyroxine.
+4. Recurrent depression — patient discontinued sertraline approximately 
+   one year ago. Currently symptomatic with low mood and anhedonia.
+5. Osteoarthritis — chronic, mildly symptomatic.
+6. Fall risk — age, cognitive impairment, and polypharmacy are risk factors.
+
+PLAN:
+- Order MRI brain and formal neuropsychological evaluation for cognitive decline
+- Restart sertraline 25mg daily, titrate to 50mg in 2 weeks
+- Discussed home safety with daughter (stove, medications, fall hazards)
+- Continue current cardiac and thyroid medications
+- Physical therapy referral for knee and back pain
+- Follow-up in 4 weeks for medication check and cognitive workup review
+- Daughter given my direct line for concerns

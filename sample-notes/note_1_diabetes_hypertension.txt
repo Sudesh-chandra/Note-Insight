@@ -1,0 +1,35 @@
+Patient: Margaret Chen, 58yo Female
+Visit Date: 2024-11-15
+Pseudonym: MC-2024-1115
+
+SUBJECTIVE:
+Patient presents for follow-up of type 2 diabetes mellitus and hypertension. 
+Reports improved adherence with metformin 1000mg BID over the past 3 months. 
+States she has been checking blood glucose at home, with fasting values 
+ranging from 130-160 mg/dL. Denies episodes of hypoglycemia. Reports 
+occasional headaches, 2-3 times per week, usually relieved by OTC ibuprofen.
+
+OBJECTIVE:
+BP: 148/92 mmHg
+HR: 78 bpm
+Weight: 82 kg (BMI 31.2)
+Labs: HbA1c 7.8% (improved from 8.4% three months ago)
+Creatinine: 1.1 mg/dL
+eGFR: 62 mL/min/1.73m²
+
+ASSESSMENT:
+1. Type 2 diabetes mellitus — improving control with medication adherence. 
+   HbA1c trending down but still above target of 7.0%.
+2. Hypertension — suboptimally controlled. BP above target at today's visit.
+3. Obesity — BMI 31.2, discussed lifestyle modifications.
+4. Chronic kidney disease stage 3a — eGFR 62, likely secondary to diabetes 
+   and hypertension.
+
+PLAN:
+- Increase lisinopril from 10mg to 20mg daily for BP and renal protection
+- Continue metformin 1000mg BID
+- Add atorvastatin 20mg for cardiovascular risk reduction
+- Repeat HbA1c in 3 months
+- Repeat metabolic panel in 1 month to monitor renal function
+- Discussed diet and exercise modifications
+- Follow-up in 6 weeks

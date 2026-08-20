@@ -1,0 +1,30 @@
+Patient: James Rodriguez, 45yo Male
+Visit Date: 2024-12-02
+Pseudonym: JR-2024-1202
+
+SUBJECTIVE:
+Patient presents with 5-day history of productive cough, yellow-green sputum, 
+low-grade fever (max 100.8°F at home), and mild shortness of breath on 
+exertion. Denies chest pain, hemoptysis, or night sweats. Has history of 
+asthma, uses albuterol inhaler PRN. Reports smoking 1/2 pack per day for 
+15 years.
+
+OBJECTIVE:
+Temp: 99.8°F
+RR: 20 breaths/min
+SpO2: 95% on room air
+Lungs: Diffuse wheezing bilaterally, coarse crackles at right lower base
+Heart: Regular rate and rhythm, no murmurs
+
+ASSESSMENT:
+1. Community-acquired pneumonia, right lower lobe — clinical diagnosis based 
+   on exam findings. No imaging available today.
+2. Asthma exacerbation — triggered by current infection, wheezing on exam.
+3. Tobacco use — current smoker, 7.5 pack-year history.
+
+PLAN:
+- Prescribe azithromycin 500mg day 1, then 250mg days 2-5
+- Continue albuterol inhaler, increase frequency to Q4-6H PRN
+- Ordered chest X-ray to confirm pneumonia
+- Discussed smoking cessation — patient open to considering quit date
+- Follow-up in 48-72 hours if not improving, sooner if worsening
