@@ -22,3 +22,4 @@ Thumbs.db
 # Exclude PDF and Markdown files
 *.pdf
 *.md
+!README.md
