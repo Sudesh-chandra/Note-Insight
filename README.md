@@ -6,6 +6,13 @@ Note Insight is a full-stack web application that helps clinicians analyze clini
 
 ---
 
+## Live Demo
+
+- **Frontend**: [https://frontend-red-one-81.vercel.app](https://frontend-red-one-81.vercel.app)
+- **Backend API**: [https://note-insight.onrender.com](https://note-insight.onrender.com)
+
+---
+
 ## Features
 
 - **AI-Powered Analysis** — Automatically extracts conditions, ICD-10 codes, confidence scores, and documentation gaps from clinical notes
@@ -214,17 +221,34 @@ All endpoints (except `/health`) require a valid Firebase ID token in the `Autho
 
 ## Deployment
 
-### Backend (e.g., Render, Railway, AWS)
+This project is currently deployed and live:
 
-1. Set all environment variables from `backend/.env` in your hosting platform
-2. Deploy with the command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+- **Frontend**: [https://frontend-red-one-81.vercel.app](https://frontend-red-one-81.vercel.app) (Vercel)
+- **Backend**: [https://note-insight.onrender.com](https://note-insight.onrender.com) (Render)
 
-### Frontend (e.g., Vercel, Netlify)
+### Backend (Render)
 
-1. Set all `VITE_*` environment variables from `frontend/.env` in your hosting platform
-2. Build command: `npm run build`
-3. Output directory: `dist`
-4. Set `VITE_API_URL` to your deployed backend URL
+1. Connect your GitHub repo to Render as a **Python Web Service**
+2. Set **Root Directory**: `backend`
+3. Set **Build Command**: `pip install -r requirements.txt`
+4. Set **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+5. Add all environment variables from `backend/.env` in the Render dashboard:
+   - `OPENROUTER_API_KEY`
+   - `FIREBASE_PROJECT_ID`, `FIREBASE_PRIVATE_KEY_ID`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_CLIENT_ID`, `FIREBASE_CERT_URL`
+   - `FRONTEND_URL` (set to your deployed frontend URL, **no trailing slash**)
+
+### Frontend (Vercel)
+
+1. Import your GitHub repo on Vercel
+2. Set **Root Directory**: `frontend`
+3. Set **Framework Preset**: Vite
+4. Add environment variables in Vercel Settings → Environment Variables:
+   - All `VITE_FIREBASE_*` variables from `frontend/.env`
+   - `VITE_API_URL` = your deployed backend URL (e.g., `https://note-insight.onrender.com`)
+5. Build command: `npm run build`
+6. Output directory: `dist`
+
+> **Important**: Vite bakes environment variables at build time. After changing any `VITE_*` env var on Vercel, you must trigger a new deployment (Redeploy) for changes to take effect.
 
 ---
 
