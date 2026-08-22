@@ -62,5 +62,11 @@ export interface NoteDetail {
 export interface NoteCreateResponse {
   note_id: string;
   analysis_id: string;
-  status: string;
+  status: "completed" | "failed";
+}
+
+export interface ReviewSubmission {
+  conditions: Condition[];
+  gaps: DocumentationGap[];
+  summary: string;
 }

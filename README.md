@@ -347,6 +347,27 @@ The original AI output (`aiConditions`, `aiGaps`, `aiSummary`) is **never modifi
 
 ---
 
+## Assessment Effort
+
+**Total time spent:** Approximately 20 hours across the full assessment lifecycle, broken down as:
+
+| Phase | Time | Activities |
+|-------|------|-----------|
+| Architecture & Setup | ~3h | Firebase project, Firestore schema, FastAPI scaffold, Vite + React + TS setup |
+| Backend Development | ~5h | Auth, CRUD, AI integration, Pydantic models, quote validation, error handling |
+| Frontend Development | ~5h | Auth flow, note form, analysis view, review editor, history, routing |
+| Styling & UX Polish | ~2h | CSS, loading states, error banners, responsive layout |
+| Testing & QA | ~3h | End-to-end flow testing, multi-user isolation verification, edge cases |
+| Deployment & Docs | ~2h | Render + Vercel deployment, README, environment configuration |
+
+**What was knowingly left unfinished:**
+- Async background processing for AI analysis (synchronous for MVP)
+- File upload (image/PDF) with OCR — planned as a bonus feature
+- Automated test suite (unit + integration + E2E)
+- Analytics dashboard for documentation quality trends
+
+---
+
 ## License
 
 MIT

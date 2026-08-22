@@ -1,5 +1,5 @@
 import { auth } from "../firebase";
-import type { NoteDetail, NoteListItem, NoteCreateResponse, Condition, DocumentationGap } from "../types";
+import type { NoteDetail, NoteListItem, NoteCreateResponse, ReviewSubmission } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -70,7 +70,7 @@ export async function fetchNoteDetail(noteId: string): Promise<NoteDetail> {
 export async function submitReview(
   noteId: string,
   analysisId: string,
-  review: { conditions: Condition[]; gaps: DocumentationGap[]; summary: string }
+  review: ReviewSubmission
 ): Promise<void> {
   const response = await authenticatedFetch(
     `/api/analyses/${noteId}/${analysisId}/review`,
