@@ -49,7 +49,7 @@ Note-Insight/
 │   │   ├── main.py              # FastAPI app, CORS, route registration
 │   │   ├── models.py            # Pydantic request/response models
 │   │   ├── prompts/
-│   │   │   └── analysis_prompt.txt  # LLM system prompt
+│   │   │   └── analysis_prompt.py  # LLM system & user prompts
 │   │   └── routes/
 │   │       ├── analyses.py      # Review submission endpoint
 │   │       └── notes.py         # Note submission & listing endpoints
@@ -75,8 +75,7 @@ Note-Insight/
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── vite.config.ts
-├── prompts/                     # Prompt templates
-├── sample-notes/                # Sample clinical notes for testing
+├── sample-notes/                # 3 synthetic clinical notes for testing
 └── .gitignore
 ```
 
@@ -249,6 +248,102 @@ This project is currently deployed and live:
 6. Output directory: `dist`
 
 > **Important**: Vite bakes environment variables at build time. After changing any `VITE_*` env var on Vercel, you must trigger a new deployment (Redeploy) for changes to take effect.
+
+---
+
+## Data Model
+
+The application uses a **subcollection-based Firestore schema** with four distinct entity types:
+
+```
+Firestore
+└── notes/                          # Top-level collection
+    └── {noteId}                    # One document per clinical note
+        ├── userId: string          # Owner (Firebase Auth UID)
+        ├── rawText: string         # Original clinical note text (immutable)
+        ├── pseudonym: string?      # Patient identifier
+        ├── visitDate: string?      # ISO date
+        ├── createdAt: timestamp    # Sort key (newest first)
+        ├── updatedAt: timestamp
+        │
+        └── analyses/               # Subcollection — one per AI run
+            └── {analysisId}        # Individual analysis document
+                ├── noteId: string
+                ├── userId: string  # Redundant ownership for subcollection queries
+                │
+                │  ── Machine-written fields (immutable after creation) ──
+                ├── aiConditions: Condition[]
+                ├── aiGaps: DocumentationGap[]
+                ├── aiSummary: string
+                ├── modelVersion: string
+                ├── promptVersion: string
+                ├── quoteValidation: QuoteValidation[]
+                ├── status: "processing" | "completed" | "failed"
+                ├── createdAt: timestamp
+                │
+                │  ── Human-written fields (null until clinician reviews) ──
+                ├── reviewedConditions: Condition[] | null
+                ├── reviewedGaps: DocumentationGap[] | null
+                ├── reviewedSummary: string | null
+                ├── reviewStatus: "pending" | "reviewed"
+                └── reviewedAt: timestamp | null
+```
+
+### Type Definitions
+
+| Entity | Key Fields | Purpose |
+|--------|-----------|---------|
+| **Condition** | `name`, `evidence_quote`, `documentation_status`, `icd10_code`, `confidence` | A single extracted medical condition with traceability |
+| **DocumentationGap** | `description`, `severity` | An actionable observation about missing documentation |
+| **QuoteValidation** | `condition_name`, `evidence_quote`, `found_in_note` | Hallucination check result per evidence quote |
+
+### Provenance & Immutability
+
+The original AI output (`aiConditions`, `aiGaps`, `aiSummary`) is **never modified**. When a clinician reviews and corrects the analysis, their edits are saved to separate fields (`reviewedConditions`, `reviewedGaps`, `reviewedSummary`). This means we can always answer: *"What did the model predict vs. what did the clinician change?"*
+
+---
+
+## Architecture & Design Tradeoffs
+
+### 1. Synchronous AI Analysis (MVP Choice)
+
+**Decision**: The AI analysis runs synchronously within the HTTP request cycle rather than using a background job queue.
+
+**Tradeoff**: This simplifies the architecture significantly (no Celery/Redis, no polling, no websockets) but means the user waits 10–30 seconds for the response. For a production system with higher traffic, we would move to async processing with a task queue (e.g., Celery + Redis or Cloud Tasks) and use WebSockets or SSE for real-time status updates.
+
+### 2. Firestore Subcollection Pattern vs. Flat Collections
+
+**Decision**: Analyses are stored as a subcollection of Notes (`notes/{noteId}/analyses/{analysisId}`) rather than a flat top-level collection.
+
+**Tradeoff**: This naturally models the 1:N relationship and makes it easy to fetch "all analyses for a note" with a single query. However, it requires composite indexes for sorted queries and makes cross-note analysis queries harder. For a larger-scale system, flat collections with explicit foreign keys would offer more query flexibility.
+
+### 3. OpenRouter as LLM Gateway vs. Direct Gemini API
+
+**Decision**: We use OpenRouter (OpenAI-compatible API) to access Google Gemini 2.5 Flash rather than calling the Gemini API directly.
+
+**Tradeoff**: OpenRouter provides a unified interface that makes swapping models trivial (change one string) and handles load balancing/fallbacks. The downside is an additional network hop and dependency on a third-party service. For production, direct API access would reduce latency and cost.
+
+### 4. Client-Side Firebase Auth + Server-Side Verification
+
+**Decision**: The frontend uses the Firebase client SDK for authentication (email/password), obtains an ID token, and sends it as a Bearer token. The backend verifies it with `firebase_admin.auth.verify_id_token()`.
+
+**Tradeoff**: This is the standard Firebase pattern — secure and well-supported. The alternative (custom JWT auth with a separate identity provider) would give more control but adds significant complexity. Firebase Auth handles password hashing, session management, and token refresh automatically.
+
+---
+
+## Future Roadmap (What I'd Build Next with 1 More Week)
+
+1. **Async Analysis Pipeline** — Move AI processing to a background task queue (Celery + Redis or Google Cloud Tasks) with WebSocket/SSE push for real-time status updates. This eliminates the 10-30s blocking request.
+
+2. **FHIR Integration** — Add HL7 FHIR R4 resource mapping so extracted conditions can be exported as standard `Condition` resources for EHR interoperability.
+
+3. **Batch Note Processing** — Allow clinicians to upload a CSV or paste multiple notes at once for bulk analysis, with progress tracking per note.
+
+4. **Analytics Dashboard** — Track documentation quality trends over time: which conditions are frequently under-documented, average confidence scores, hallucination rates per model version.
+
+5. **Multi-Model Comparison** — Run the same note through multiple LLMs (Gemini, GPT-4, Claude) and compare extraction quality side-by-side, using the existing `modelVersion` field.
+
+6. **Comprehensive Test Suite** — Add pytest backend tests (unit + integration), Vitest frontend tests, and Playwright E2E tests covering the full submit → analyze → review flow.
 
 ---
 

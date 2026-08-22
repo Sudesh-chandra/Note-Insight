@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 interface NoteFormProps {
-  onSubmit: (rawText: string, pseudonym?: string, visitDate?: string) => void;
+  onSubmit: (rawText: string, pseudonym?: string, visitDate?: string) => void | Promise<void>;
   loading: boolean;
 }
 

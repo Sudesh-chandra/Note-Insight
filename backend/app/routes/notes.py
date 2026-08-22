@@ -148,7 +148,6 @@ def _format_timestamp(val) -> str:
 def _format_analysis(a: dict) -> dict:
     """Convert a Firestore analysis document to the API response shape."""
     reviewed_conditions = a.get("reviewedConditions")
-    logger.info(f"Analysis {a['id']}: reviewed_conditions type={type(reviewed_conditions)}, value={reviewed_conditions}")
     return {
         "id": a["id"],
         "note_id": a["noteId"],

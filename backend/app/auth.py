@@ -35,5 +35,5 @@ async def get_current_user(
         return decoded["uid"]
     except auth.ExpiredIdTokenError:
         raise HTTPException(status_code=401, detail="Session expired. Please log in again.")
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid authentication token: {e}")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid authentication token.")
