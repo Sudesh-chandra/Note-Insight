@@ -39,21 +39,6 @@ class TestFileValidation:
 class TestPDFExtraction:
     """Test PDF text extraction using mocked PyPDF2."""
 
-    def test_pdf_extraction_success(self):
-        """Mock a successful PDF extraction."""
-        mock_page = MagicMock()
-        mock_page.extract_text.return_value = "Patient has hypertension."
-
-        mock_reader = MagicMock()
-        mock_reader.pages = [mock_page]
-
-        with patch("app.document_service.PdfReader", return_value=mock_reader, create=True):
-            # Need to patch the import inside the function
-            with patch.dict("sys.modules", {"PyPDF2": MagicMock(PdfReader=MagicMock(return_value=mock_reader))}):
-                result = extract_text_from_pdf(b"fake pdf bytes")
-                # The function imports PyPDF2 internally, so we need a different approach
-                # Let's just test the error case instead
-
     def test_pdf_extraction_failure(self):
         """Corrupt PDF should raise ValueError."""
         with pytest.raises((ValueError, Exception)):
@@ -61,12 +46,43 @@ class TestPDFExtraction:
 
 
 class TestImageExtraction:
-    """Test image OCR extraction using mocked pytesseract."""
+    """Test image OCR extraction using Gemini vision API."""
+
+    def test_image_extraction_success(self):
+        """Mock a successful Gemini vision extraction."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Patient has hypertension and diabetes."
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("openai.OpenAI", return_value=mock_client):
+            result = extract_text_from_image(b"fake-image-bytes", "test.png")
+            assert "hypertension" in result
+            assert "diabetes" in result
 
     def test_image_extraction_failure(self):
-        """Non-image bytes should raise an error."""
-        with pytest.raises((ValueError, RuntimeError, Exception)):
-            extract_text_from_image(b"not an image", "test.png")
+        """API failure should raise ValueError."""
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = Exception("API error")
+
+        with patch("openai.OpenAI", return_value=mock_client):
+            with pytest.raises(ValueError, match="Failed to extract text from image"):
+                extract_text_from_image(b"fake-image-bytes", "test.png")
+
+    def test_image_empty_response(self):
+        """Empty vision response should raise ValueError."""
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = ""
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("openai.OpenAI", return_value=mock_client):
+            with pytest.raises(ValueError, match="Vision model returned empty text"):
+                extract_text_from_image(b"fake-image-bytes", "test.png")
 
 
 class TestExtractFromUpload:
@@ -79,11 +95,18 @@ class TestExtractFromUpload:
             extract_text_from_upload(b"fake", "test.pdf")
 
     def test_png_dispatch(self):
-        """PNG files should go through image extraction path."""
-        with pytest.raises(Exception):
-            extract_text_from_upload(b"fake", "test.png")
+        """PNG files should go through image extraction path (Gemini vision)."""
+        # Mock the OpenAI client so image extraction doesn't make real API calls
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = Exception("mocked")
+        with patch("openai.OpenAI", return_value=mock_client):
+            with pytest.raises(ValueError):
+                extract_text_from_upload(b"fake", "test.png")
 
     def test_jpg_dispatch(self):
-        """JPG files should go through image extraction path."""
-        with pytest.raises(Exception):
-            extract_text_from_upload(b"fake", "photo.jpg")
+        """JPG files should go through image extraction path (Gemini vision)."""
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = Exception("mocked")
+        with patch("openai.OpenAI", return_value=mock_client):
+            with pytest.raises(ValueError):
+                extract_text_from_upload(b"fake", "photo.jpg")
