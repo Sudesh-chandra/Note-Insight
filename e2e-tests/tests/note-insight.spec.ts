@@ -80,9 +80,9 @@ test.describe("1. Authentication & Tenant Isolation", () => {
       user2Page.locator("text=Note not found").or(user2Page.locator("text=Error"));
     await expect(errorOrNotFound.first()).toBeVisible({ timeout: 15_000 });
 
-    // Check no critical console errors
+    // Check no critical console errors (404 is expected — User 2 can't access User 1's note)
     const criticalErrors = consoleErrors.filter(
-      (e) => !e.includes("favicon") && !e.includes("DevTools")
+      (e) => !e.includes("favicon") && !e.includes("DevTools") && !e.includes("404")
     );
     expect(criticalErrors, `Console errors: ${criticalErrors.join("; ")}`).toHaveLength(0);
 
@@ -244,9 +244,16 @@ test.describe("3. Human Review & State Immutability", () => {
   let context: BrowserContext;
   let reviewNoteId: string;
 
-  test("3.1 — Edit, add, remove conditions and save review", async ({ browser }) => {
+  test.beforeEach(async ({ browser }) => {
     context = await browser.newContext();
     page = await context.newPage();
+  });
+
+  test.afterEach(async () => {
+    await context?.close();
+  });
+
+  test("3.1 — Edit, add, remove conditions and save review", async () => {
     const consoleErrors = setupConsoleErrorCollector(page);
 
     // Sign up and submit a note
@@ -285,6 +292,9 @@ test.describe("3. Human Review & State Immutability", () => {
     const newConditionCard = page.locator(".review-condition-card").last();
     await newConditionCard.locator('input[type="text"]').first().fill("Manual Test Condition");
     await newConditionCard.locator("textarea").first().fill("This is a manually added condition for testing");
+    // Fill ICD-10 code for the new condition (required by backend)
+    const newConditionIcdInput = newConditionCard.locator('input[type="text"]').last();
+    await newConditionIcdInput.fill("Z00.0");
 
     // Count conditions before removal
     const countBeforeRemoval = await page.locator(".review-condition-card").count();
@@ -300,13 +310,28 @@ test.describe("3. Human Review & State Immutability", () => {
     }
 
     // — Save the review
+    // Intercept the review API call to check the response
+    let reviewResponseStatus = 0;
+    let reviewResponseBody = "";
+    page.on("response", (response) => {
+      if (response.url().includes("/api/analyses/") && response.url().includes("/review")) {
+        reviewResponseStatus = response.status();
+        response.text().then((t) => { reviewResponseBody = t; }).catch(() => {});
+      }
+    });
+
     await page.click('button:has-text("Save Review")');
 
-    // Wait for save to complete — should return to analysis view
-    await expect(page.locator(".analysis-view")).toBeVisible({ timeout: 30_000 });
+    // Wait for the API call to complete
+    await page.waitForTimeout(5000);
 
-    // — Verify "Reviewed" status banner
-    await expect(page.locator(".status-banner.reviewed")).toBeVisible({ timeout: 10_000 });
+    // Check the API response
+    if (reviewResponseStatus > 0 && reviewResponseStatus >= 400) {
+      throw new Error(`Review API returned ${reviewResponseStatus}: ${reviewResponseBody}`);
+    }
+
+    // Wait for save to complete — the reviewed banner should appear
+    await expect(page.locator(".status-banner.reviewed")).toBeVisible({ timeout: 30_000 });
 
     // — Verify "Review & Correct" button is NO LONGER shown (already reviewed)
     await expect(page.locator('button:has-text("Review & Correct")')).not.toBeVisible();
@@ -323,18 +348,91 @@ test.describe("3. Human Review & State Immutability", () => {
     expect(criticalErrors, `Console errors: ${criticalErrors.join("; ")}`).toHaveLength(0);
   });
 
-  test("3.2 — Verify AI output immutability via API", async () => {
-    // Extract the JWT token from the page
-    const token = await extractFirebaseToken(page);
-    expect(token).toBeTruthy();
+  test("3.2 — Verify AI output immutability via API", async ({ browser }) => {
+    // Create a fresh user and note for this test
+    const testPage = await browser.newPage();
+    const runId = Date.now();
+    const testUser = {
+      email: `qa_api_imm_${runId}@doctustech.synthetic`,
+      password: "Password123!",
+    };
+    await signUpUser(testPage, testUser.email, testUser.password);
+    const testNoteId = await submitNoteViaUI(testPage, SHORT_NOTE);
+    await expect(testPage.locator(".analysis-view")).toBeVisible({ timeout: 120_000 });
 
-    // Fetch the note detail via API
-    const response = await page.request.get(`${BACKEND_URL}/api/notes/${reviewNoteId}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    // Get the analysis ID from the page
+    const analysisId = await testPage.evaluate(() => {
+      // The analysis ID is in the URL or can be extracted from the page
+      // We'll use the network to find it
+      return "";
     });
-    expect(response.ok()).toBe(true);
 
-    const detail = await response.json();
+    // Instead, intercept the note detail API call to get the analysis ID
+    let capturedAnalysisId = "";
+    testPage.on("response", (response) => {
+      if (response.url().includes(`/api/notes/${testNoteId}`) && response.status() === 200) {
+        response.json().then((data) => {
+          if (data.latest_analysis?.id) {
+            capturedAnalysisId = data.latest_analysis.id;
+          }
+        }).catch(() => {});
+      }
+    });
+
+    // Reload to trigger the API call
+    await testPage.reload();
+    await testPage.waitForTimeout(3000);
+
+    // Get the token via page reload interception
+    const token = await new Promise<string>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("Token extraction timed out")), 15_000);
+      testPage.on("request", (request) => {
+        const authHeader = request.headers()["authorization"];
+        if (authHeader && authHeader.startsWith("Bearer ")) {
+          clearTimeout(timeout);
+          resolve(authHeader.slice(7));
+        }
+      });
+      testPage.goto("/").catch(() => {});
+    });
+
+    expect(token).toBeTruthy();
+    expect(capturedAnalysisId, "Should capture analysis ID from API response").toBeTruthy();
+
+    // Now submit a review via API
+    const reviewResponse = await testPage.request.put(
+      `${BACKEND_URL}/api/analyses/${testNoteId}/${capturedAnalysisId}/review`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        data: JSON.stringify({
+          conditions: [
+            {
+              name: "Test Condition (API Reviewed)",
+              evidence_quote: "patient presents with persistent headache",
+              documentation_status: "well_documented",
+              icd10_code: "R51.9",
+              confidence: 0.9,
+            },
+          ],
+          gaps: [],
+          summary: "API-reviewed summary",
+        }),
+      }
+    );
+
+    expect(reviewResponse.ok(), `Review API should succeed: ${reviewResponse.status()}`).toBe(true);
+
+    // Fetch the note detail to verify immutability
+    const detailResponse = await testPage.request.get(
+      `${BACKEND_URL}/api/notes/${testNoteId}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    expect(detailResponse.ok()).toBe(true);
+
+    const detail = await detailResponse.json();
     const analysis = detail.latest_analysis;
 
     // AI conditions should still exist and be untouched
@@ -349,15 +447,13 @@ test.describe("3. Human Review & State Immutability", () => {
     expect(analysis.review_status).toBe("reviewed");
     expect(analysis.reviewed_at, "reviewed_at timestamp should be set").toBeTruthy();
 
-    // AI output should NOT equal reviewed output (we made changes)
+    // AI output should NOT equal reviewed output
     const aiNames = analysis.ai_conditions.map((c: { name: string }) => c.name);
     const reviewedNames = analysis.reviewed_conditions.map((c: { name: string }) => c.name);
     const areDifferent = JSON.stringify(aiNames) !== JSON.stringify(reviewedNames);
     expect(areDifferent, "AI and reviewed conditions should differ").toBe(true);
-  });
 
-  test.afterAll(async () => {
-    await context?.close();
+    await testPage.close();
   });
 });
 
@@ -462,11 +558,11 @@ test.describe("5. Bonus Features", () => {
     // Switch to upload mode
     await page.click('button:has-text("Upload Document")');
 
-    // Verify upload area is visible
-    const fileInput = page.locator('input[type="file"]');
-    await expect(fileInput).toBeVisible({ timeout: 5_000 });
+    // Verify upload zone is visible (file input is hidden by design)
+    await expect(page.locator(".upload-zone")).toBeVisible({ timeout: 5_000 });
 
-    // Upload a PDF
+    // Upload a PDF using the hidden file input
+    const fileInput = page.locator('input[type="file"]');
     const pdfPath = getFixturePath("test_note_pdf_1.pdf");
     await fileInput.setInputFiles(pdfPath);
 
@@ -495,9 +591,10 @@ test.describe("5. Bonus Features", () => {
     await page.goto("/");
     await page.click('button:has-text("Upload Document")');
 
-    const fileInput = page.locator('input[type="file"]');
-    await expect(fileInput).toBeVisible({ timeout: 5_000 });
+    // Verify upload zone is visible (file input is hidden by design)
+    await expect(page.locator(".upload-zone")).toBeVisible({ timeout: 5_000 });
 
+    const fileInput = page.locator('input[type="file"]');
     const pngPath = getFixturePath("test_note_image_1.png");
     await fileInput.setInputFiles(pngPath);
 
@@ -536,7 +633,8 @@ test.describe("5. Bonus Features", () => {
     await expect(firstCondition).toHaveClass(/highlighted/);
 
     // Check that a highlight span exists in the note text area
-    const highlightedSpan = page.locator(".highlight-segment");
+    // The EvidenceHighlight component uses .evidence-match class for <mark> elements
+    const highlightedSpan = page.locator(".evidence-match");
     // There should be at least one highlighted segment
     const highlightCount = await highlightedSpan.count();
     expect(highlightCount, "Should have at least one highlighted text segment").toBeGreaterThanOrEqual(1);

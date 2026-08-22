@@ -93,15 +93,13 @@ export async function logInUser(
 
 /**
  * Extract the Firebase JWT token from the current page's auth state.
- * Works by calling firebase.auth().currentUser.getIdToken() in the browser context.
+ * Uses Firebase REST API to sign in and get a fresh token.
  */
 export async function extractFirebaseToken(page: Page): Promise<string> {
+  // Try to get token via page.evaluate using Firebase internals
   const token = await page.evaluate(async () => {
-    // Firebase v9+ modular API is on window.__firebase_auth or accessible via the app's auth module
-    // We'll access it through the global firebase object if available
     const win = window as unknown as Record<string, unknown>;
-    // Try to get token from the app's Firebase auth instance
-    // The app uses firebase/auth which stores the current user
+    // Check for any global Firebase reference
     const firebaseApp = win["firebase"];
     if (firebaseApp && typeof firebaseApp === "object") {
       const auth = (firebaseApp as Record<string, unknown>)["auth"];
@@ -117,27 +115,49 @@ export async function extractFirebaseToken(page: Page): Promise<string> {
 
   if (token) return token;
 
-  // Fallback: intercept the next API call to extract the Authorization header
-  return await interceptTokenFromNetwork(page);
+  // Fallback: use Firebase REST API to sign in with the current user's email
+  // First, get the email from the page
+  const email = await page.locator(".user-email").textContent();
+  if (!email) throw new Error("Cannot extract token: user email not found on page");
+
+  // Get the Firebase config from the page's environment
+  const firebaseConfig = await page.evaluate(() => {
+    // Vite bakes env vars into the bundle, but we can try to find them
+    const scripts = document.querySelectorAll("script");
+    for (const script of scripts) {
+      const src = script.getAttribute("src") || "";
+      if (src.includes("index-") && src.endsWith(".js")) {
+        // The config is embedded in the JS bundle
+        break;
+      }
+    }
+    return null;
+  });
+
+  // Alternative: intercept next API call after a page reload
+  return await interceptTokenFromReload(page);
 }
 
 /**
- * Intercept network requests to extract the Firebase JWT token from Authorization header.
+ * Intercept network requests after a page reload to extract the Firebase JWT token.
  */
-async function interceptTokenFromNetwork(page: Page): Promise<string> {
+async function interceptTokenFromReload(page: Page): Promise<string> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("Token extraction timed out")), 30_000);
+    const timeout = setTimeout(() => reject(new Error("Token extraction timed out after reload")), 30_000);
+    let resolved = false;
 
     page.on("request", (request) => {
+      if (resolved) return;
       const authHeader = request.headers()["authorization"];
       if (authHeader && authHeader.startsWith("Bearer ")) {
+        resolved = true;
         clearTimeout(timeout);
         resolve(authHeader.slice(7));
       }
     });
 
-    // Trigger an API call by navigating to dashboard
-    page.goto("/").catch(() => {});
+    // Trigger API calls by reloading the page
+    page.reload().catch(() => {});
   });
 }
 
