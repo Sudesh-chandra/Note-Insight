@@ -15,12 +15,24 @@ Note Insight is a full-stack web application that helps clinicians analyze clini
 
 ## Features
 
+### Core Features
 - **AI-Powered Analysis** — Automatically extracts conditions, ICD-10 codes, confidence scores, and documentation gaps from clinical notes
 - **Evidence Traceability** — Every extracted condition includes a verbatim quote from the original note
+- **Hallucination Guardrail** — Programmatic check verifies every evidence quote exists verbatim in the source text
 - **Human Review & Correction** — Clinicians can edit AI output, add missed conditions, and save reviewed versions alongside the original
 - **Data Immutability** — Original AI output is always preserved separately from human-reviewed corrections
 - **User Isolation** — Firebase Authentication ensures each user can only access their own notes
 - **History & Sorting** — All notes displayed newest-first with review status badges
+- **Strict TypeScript** — Zero `any` types across the entire frontend
+
+### Bonus Features
+1. **Document & Image Upload Pipeline** — Upload `.pdf`, `.png`, or `.jpeg` files via drag-and-drop or file picker. PDFs are extracted with PyPDF2, images are processed with Tesseract OCR. Extracted text flows into the same AI analysis pipeline.
+2. **Streaming Analysis (SSE)** — Real-time Server-Sent Events endpoint (`POST /api/notes/analyze/stream`) streams LLM tokens and structured progress stages to the frontend as analysis runs.
+3. **Duplicate Note Caching** — SHA-256 hash of normalized note text per user. Identical notes return cached analysis instantly without calling the AI API.
+4. **Inline Evidence Highlighting** — Hover over any condition card to highlight its evidence quote directly in the clinical note text.
+5. **Clinician Correction Metrics Dashboard** — Aggregated `/metrics` view showing total notes analyzed vs reviewed, correction rate (%), breakdown by field (name, ICD-10, status, quote, confidence), and gap changes.
+6. **Per-User Rate Limiting** — FastAPI middleware (slowapi) enforces 10 requests/minute per authenticated user, returning HTTP 429 on abuse.
+7. **Automated Test Suite** — Backend: 46 pytest tests (schema validation, hallucination detection, cache hashing, auth structure, rate limiting). Frontend: 26 Vitest tests (form loading states, condition editing, error boundaries).
 
 ---
 
@@ -42,32 +54,49 @@ Note Insight is a full-stack web application that helps clinicians analyze clini
 Note-Insight/
 ├── backend/
 │   ├── app/
-│   │   ├── auth.py              # Firebase ID token verification
+│   │   ├── auth.py              # Firebase ID token verification + per-user rate limit key
+│   │   ├── cache_service.py     # SHA-256 duplicate note caching
 │   │   ├── config.py            # Pydantic settings (loads from .env)
 │   │   ├── db.py                # Firestore CRUD operations
+│   │   ├── document_service.py  # PDF/image text extraction (PyPDF2 + Tesseract OCR)
 │   │   ├── gemini_service.py    # AI analysis via OpenRouter/Gemini
+│   │   ├── limiter.py           # Shared per-user rate limiter (slowapi)
 │   │   ├── main.py              # FastAPI app, CORS, route registration
+│   │   ├── metrics_service.py   # Clinician correction metrics aggregation
 │   │   ├── models.py            # Pydantic request/response models
+│   │   ├── streaming_service.py # SSE streaming analysis service
 │   │   ├── prompts/
 │   │   │   └── analysis_prompt.py  # LLM system & user prompts
 │   │   └── routes/
 │   │       ├── analyses.py      # Review submission endpoint
-│   │       └── notes.py         # Note submission & listing endpoints
+│   │       ├── metrics.py       # Metrics aggregation endpoint
+│   │       └── notes.py         # Note submission, upload, streaming, listing
+│   ├── tests/
+│   │   ├── conftest.py          # Firebase mock setup + shared fixtures
+│   │   ├── test_auth_rate_limit.py  # Auth structure + rate limiter tests
+│   │   ├── test_cache.py        # SHA-256 hash computation tests
+│   │   ├── test_document_service.py # File validation + extraction tests
+│   │   ├── test_hallucination.py    # Quote validation / hallucination detection
+│   │   └── test_models.py       # Pydantic schema validation tests
+│   ├── pytest.ini
 │   ├── requirements.txt
 │   ── .env                     # Backend environment variables (NOT committed)
 ├── frontend/
 │   ├── src/
-│   │   ├── api/client.ts        # Authenticated API client
+│   │   ├── api/client.ts        # Authenticated API client (incl. upload, stream, metrics)
 │   │   ├── components/
-│   │   │   ├── Analysis/        # AnalysisView, ReviewEditor
+│   │   │   ├── Analysis/        # AnalysisView, ReviewEditor, EvidenceHighlight
 │   │   │   ├── Auth/            # LoginForm, SignupForm
 │   │   │   ├── Layout/          # AppLayout, LoadingStates, ProtectedRoute
-│   │   │   └── Notes/           # NoteForm, NoteHistory
+│   │   │   └── Notes/           # NoteForm, NoteHistory, DocumentUpload
 │   │   ├── context/AuthContext.tsx
 │   │   ├── hooks/               # useAuth, useNotes, useAnalysis
-│   │   ├── pages/               # Dashboard, Login, NoteDetail
-│   │   ├── styles/global.css
-│   │   ├── types/index.ts       # Shared TypeScript types
+│   │   ├── pages/               # Dashboard, Login, NoteDetail, Metrics
+│   │   ├── test/                # Vitest test files
+│   │   │   ├── NoteForm.test.tsx
+│   │   │   ├── ReviewEditor.test.tsx
+│   │   │   └── LoadingStates.test.tsx
+│   │   ├── types/index.ts       # Shared TypeScript types (zero `any`)
 │   │   ├── firebase.ts          # Firebase client initialization
 │   │   ├── App.tsx
 │   │   └── main.tsx
@@ -75,6 +104,7 @@ Note-Insight/
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── vite.config.ts
+├── test_fixtures/               # 5 synthetic test files (2 PNG + 3 PDF)
 ├── sample-notes/                # 3 synthetic clinical notes for testing
 └── .gitignore
 ```
@@ -180,7 +210,21 @@ npm run dev
 
 Frontend will be available at **http://localhost:5173**
 
-### 3. Using the App
+### 3. Running Tests
+
+**Backend tests (pytest):**
+```bash
+cd backend
+python -m pytest tests/ -v
+```
+
+**Frontend tests (Vitest):**
+```bash
+cd frontend
+npm test
+```
+
+### 4. Using the App
 
 1. Open http://localhost:5173 in your browser
 2. **Sign up** with an email and password (creates a new Firebase Auth account)
@@ -200,9 +244,12 @@ Frontend will be available at **http://localhost:5173**
 |--------|----------|-------------|
 | `GET` | `/health` | Health check |
 | `POST` | `/api/notes` | Submit a clinical note for AI analysis |
+| `POST` | `/api/notes/upload` | Upload a PDF/image for OCR extraction + AI analysis |
+| `POST` | `/api/notes/analyze/stream` | Stream AI analysis in real-time via SSE |
 | `GET` | `/api/notes` | List all notes for the authenticated user (newest first) |
 | `GET` | `/api/notes/{note_id}` | Get full note detail with all analyses |
 | `PUT` | `/api/analyses/{note_id}/{analysis_id}/review` | Save human review/corrections |
+| `GET` | `/api/metrics` | Get aggregated clinician correction metrics |
 
 All endpoints (except `/health`) require a valid Firebase ID token in the `Authorization: Bearer <token>` header.
 
@@ -349,7 +396,7 @@ The original AI output (`aiConditions`, `aiGaps`, `aiSummary`) is **never modifi
 
 ## Assessment Effort
 
-**Total time spent:** Approximately 20 hours across the full assessment lifecycle, broken down as:
+**Total time spent:** Approximately 32 hours across the full assessment lifecycle, broken down as:
 
 | Phase | Time | Activities |
 |-------|------|-----------|
@@ -357,14 +404,16 @@ The original AI output (`aiConditions`, `aiGaps`, `aiSummary`) is **never modifi
 | Backend Development | ~5h | Auth, CRUD, AI integration, Pydantic models, quote validation, error handling |
 | Frontend Development | ~5h | Auth flow, note form, analysis view, review editor, history, routing |
 | Styling & UX Polish | ~2h | CSS, loading states, error banners, responsive layout |
-| Testing & QA | ~3h | End-to-end flow testing, multi-user isolation verification, edge cases |
-| Deployment & Docs | ~2h | Render + Vercel deployment, README, environment configuration |
+| Initial QA & Deployment | ~3h | End-to-end flow testing, Render + Vercel deployment, README documentation |
+| Bonus Feature 1: Upload Pipeline | ~2.5h | Document service (PyPDF2 + Tesseract), upload endpoint, drag-and-drop UI component |
+| Bonus Feature 2: SSE Streaming | ~2h | Streaming service with token-level events, frontend SSE parser, progress stages |
+| Bonus Feature 3: Duplicate Caching | ~1h | SHA-256 hash computation, Firestore cache collection, cache lookup integration |
+| Bonus Feature 4: Evidence Highlighting | ~1.5h | EvidenceHighlight component, hover state wiring between AnalysisView and note text |
+| Bonus Feature 5: Metrics Dashboard | ~2h | Metrics aggregation service, /metrics endpoint, MetricsPage with field breakdown |
+| Bonus Feature 6: Rate Limiting | ~1h | Per-user rate limiter with slowapi, shared limiter module, request.state integration |
+| Bonus Feature 7: Test Suite | ~3h | 46 backend pytest tests + 26 frontend Vitest tests, Firebase mocking infrastructure |
 
-**What was knowingly left unfinished:**
-- Async background processing for AI analysis (synchronous for MVP)
-- File upload (image/PDF) with OCR — planned as a bonus feature
-- Automated test suite (unit + integration + E2E)
-- Analytics dashboard for documentation quality trends
+**All 7 bonus features completed. All baseline requirements satisfied.**
 
 ---
 

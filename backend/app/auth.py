@@ -1,6 +1,6 @@
 import firebase_admin
 from firebase_admin import auth, credentials
-from fastapi import HTTPException, Depends
+from fastapi import HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.config import settings
 
@@ -23,16 +23,21 @@ security = HTTPBearer()
 
 
 async def get_current_user(
+    request: Request,
     credentials_token: HTTPAuthorizationCredentials = Depends(security),
 ) -> str:
     """Verify Firebase ID token and return the user's UID.
 
     This is the core security gate — every protected endpoint depends on it.
     We NEVER trust a user ID sent from the client.
+    Also stores user_id in request.state for the per-user rate limiter.
     """
     try:
         decoded = auth.verify_id_token(credentials_token.credentials)
-        return decoded["uid"]
+        uid = decoded["uid"]
+        # Store in request.state so the rate limiter can key by user
+        request.state.user_id = uid
+        return uid
     except auth.ExpiredIdTokenError:
         raise HTTPException(status_code=401, detail="Session expired. Please log in again.")
     except Exception:

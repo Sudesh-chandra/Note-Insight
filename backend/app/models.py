@@ -98,3 +98,20 @@ class NoteCreateResponse(BaseModel):
     note_id: str
     analysis_id: str
     status: str
+
+
+class MetricsResponse(BaseModel):
+    """Aggregated clinician correction metrics."""
+    model_config = ConfigDict(protected_namespaces=())
+
+    total_notes: int
+    total_analyses: int
+    reviewed_count: int
+    pending_count: int
+    correction_rate: float
+    conditions_added: int
+    conditions_removed: int
+    conditions_modified: int
+    corrections_by_field: dict[str, int]
+    gaps_added: int
+    gaps_removed: int

@@ -3,9 +3,18 @@ import type { Analysis, Condition } from "../../types";
 interface AnalysisViewProps {
   analysis: Analysis;
   onEditReview: () => void;
+  /** Called when user hovers over a condition card (index or null to clear) */
+  onConditionHover?: (index: number | null) => void;
+  /** Currently highlighted condition index (controlled by parent) */
+  highlightedConditionIndex?: number | null;
 }
 
-export function AnalysisView({ analysis, onEditReview }: AnalysisViewProps) {
+export function AnalysisView({
+  analysis,
+  onEditReview,
+  onConditionHover,
+  highlightedConditionIndex = null,
+}: AnalysisViewProps) {
   // Use reviewed data if available, otherwise show AI output
   const conditions = analysis.reviewed_conditions || analysis.ai_conditions;
   const gaps = analysis.reviewed_gaps || analysis.ai_gaps;
@@ -58,9 +67,12 @@ export function AnalysisView({ analysis, onEditReview }: AnalysisViewProps) {
             <ConditionCard
               key={`${condition.name}-${index}`}
               condition={condition}
+              index={index}
+              isHighlighted={highlightedConditionIndex === index}
               isHallucinated={
                 quoteValidationMap.get(condition.evidence_quote) === false
               }
+              onHover={onConditionHover}
             />
           ))}
         </div>
@@ -99,10 +111,16 @@ export function AnalysisView({ analysis, onEditReview }: AnalysisViewProps) {
 
 function ConditionCard({
   condition,
+  index,
+  isHighlighted,
   isHallucinated,
+  onHover,
 }: {
   condition: Condition;
+  index: number;
+  isHighlighted: boolean;
   isHallucinated: boolean;
+  onHover?: (index: number | null) => void;
 }) {
   const statusLabels: Record<string, string> = {
     well_documented: "Well Documented",
@@ -111,7 +129,11 @@ function ConditionCard({
   };
 
   return (
-    <div className={`condition-card ${isHallucinated ? "hallucinated" : ""}`}>
+    <div
+      className={`condition-card ${isHallucinated ? "hallucinated" : ""} ${isHighlighted ? "highlighted" : ""}`}
+      onMouseEnter={() => onHover?.(index)}
+      onMouseLeave={() => onHover?.(null)}
+    >
       <div className="condition-header">
         <h4 className="condition-name">{condition.name}</h4>
         <span className={`status-pill ${condition.documentation_status}`}>

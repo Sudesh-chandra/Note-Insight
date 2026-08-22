@@ -1,7 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
-from app.routes import notes, analyses
+from app.limiter import limiter
+from app.routes import notes, analyses, metrics
 from app.config import settings
 
 app = FastAPI(
@@ -9,6 +13,10 @@ app = FastAPI(
     version="1.0.0",
     description="Clinical documentation analysis powered by AI",
 )
+
+# Rate limiting setup — per-user via shared limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -21,6 +29,7 @@ app.add_middleware(
 
 app.include_router(notes.router)
 app.include_router(analyses.router)
+app.include_router(metrics.router)
 
 
 @app.get("/health")

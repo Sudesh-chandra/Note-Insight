@@ -70,3 +70,24 @@ export interface ReviewSubmission {
   gaps: DocumentationGap[];
   summary: string;
 }
+
+export interface MetricsData {
+  total_notes: number;
+  total_analyses: number;
+  reviewed_count: number;
+  pending_count: number;
+  correction_rate: number;
+  conditions_added: number;
+  conditions_removed: number;
+  conditions_modified: number;
+  corrections_by_field: Record<string, number>;
+  gaps_added: number;
+  gaps_removed: number;
+}
+
+export type SSEEvent =
+  | { event: "start"; data: { message: string } }
+  | { event: "token"; data: { token: string } }
+  | { event: "progress"; data: { stage: string } }
+  | { event: "complete"; data: Record<string, unknown> }
+  | { event: "error"; data: { message: string } };

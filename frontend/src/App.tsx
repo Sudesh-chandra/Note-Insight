@@ -4,6 +4,7 @@ import { ProtectedRoute } from "./components/Layout/ProtectedRoute";
 import { LoginPage } from "./pages/LoginPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { NoteDetailPage } from "./pages/NoteDetailPage";
+import { MetricsPage } from "./pages/MetricsPage";
 import { AppLayout } from "./components/Layout/AppLayout";
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
           >
             <Route index element={<DashboardPage />} />
             <Route path="notes/:noteId" element={<NoteDetailPage />} />
+            <Route path="metrics" element={<MetricsPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
