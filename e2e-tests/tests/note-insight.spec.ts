@@ -777,78 +777,25 @@ test.describe("6. API-Level Bonus Tests", () => {
 
   // 6.3 — SSE Streaming endpoint
   test("6.3 — Streaming endpoint returns SSE events", async () => {
-    // Use page.evaluate to make a fetch request and read the SSE stream
-    const events = await page.evaluate(async (backendUrl: string) => {
-      const user = (window as unknown as Record<string, unknown>)["__firebase_user" as string];
-      // We need to get the token from the page's auth context
-      const authModule = await import("firebase/auth");
-      const firebaseApp = (window as unknown as Record<string, unknown>)["__firebase_app"];
-      // Simpler: just use the current user from the app's auth
-      const currentUser = authModule.getAuth().currentUser;
-      if (!currentUser) return { error: "Not authenticated" };
+    // Use the auth token we already extracted in beforeEach
+    // Verify the streaming endpoint exists, accepts auth, and returns SSE content type
+    const resp = await page.request.post(`${BACKEND_URL}/api/notes/analyze/stream`, {
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": "application/json",
+      },
+      data: JSON.stringify({ raw_text: "Patient has diabetes and hypertension. Assessment: Type 2 diabetes mellitus. Plan: Continue metformin." }),
+    });
+    expect(resp.status(), `Stream endpoint should return 200, got ${resp.status()}`).toBe(200);
+    const contentType = resp.headers()["content-type"] || "";
+    expect(contentType, "Should return text/event-stream").toContain("text/event-stream");
 
-      const token = await currentUser.getIdToken();
-      const response = await fetch(`${backendUrl}/api/notes/analyze/stream`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          raw_text: "Patient has diabetes and hypertension. Assessment: Type 2 diabetes mellitus, controlled. Plan: Continue metformin.",
-        }),
-      });
-
-      if (!response.ok) {
-        return { error: `HTTP ${response.status}`, body: await response.text() };
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) return { error: "No reader" };
-
-      const decoder = new TextDecoder();
-      const collectedEvents: string[] = [];
-      let buffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("event: ") || line.startsWith("data: ")) {
-            collectedEvents.push(line.trim());
-          }
-        }
-
-        // Stop after collecting enough events
-        if (collectedEvents.length > 20) break;
-      }
-
-      return { events: collectedEvents, count: collectedEvents.length };
-    }, BACKEND_URL);
-
-    // The stream should have returned events
-    if ("error" in events) {
-      // If firebase/auth import fails, fall back to a simpler check
-      console.log("SSE stream test: falling back to network check");
-      // Just verify the endpoint exists and accepts auth
-      const resp = await page.request.post(`${BACKEND_URL}/api/notes/analyze/stream`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-          "Content-Type": "application/json",
-        },
-        data: JSON.stringify({ raw_text: "Patient has diabetes and hypertension. Assessment: Type 2 diabetes mellitus. Plan: Continue metformin." }),
-      });
-      expect(resp.status(), "Stream endpoint should return 200").toBe(200);
-      const contentType = resp.headers()["content-type"] || "";
-      expect(contentType, "Should return text/event-stream").toContain("text/event-stream");
-    } else {
-      expect(events.count, "Should receive SSE events").toBeGreaterThan(0);
-    }
+    // Read a portion of the response body to verify SSE format
+    const body = await resp.text();
+    expect(body.length, "SSE stream should contain event data").toBeGreaterThan(0);
+    // SSE format uses "event:" and "data:" lines
+    const hasSseFormat = body.includes("event:") || body.includes("data:");
+    expect(hasSseFormat, "Response should contain SSE-formatted events").toBe(true);
   });
 });
 
